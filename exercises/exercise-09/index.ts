@@ -71,8 +71,19 @@ type ApiResponse<T> = (
     }
 );
 
-function promisify(arg: unknown): unknown {
-    return null;
+function promisify<T>(oldMethod: (callback: (response: ApiResponse<T>) => void) => void): () => Promise<T> {
+    function inner(): Promise<T> {
+        return new Promise((resolve, reject) => {
+            oldMethod((response) => {
+                if (response.status === 'success') {
+                    resolve(response.data);
+                } else {
+                    reject(new Error(response.error));
+                }
+            })
+        })
+    }
+    return inner;
 }
 
 const oldApi = {
@@ -132,14 +143,13 @@ async function startTheApp() {
     console.log(`   ${await api.requestCoffeeMachineQueueLength()}`);
 }
 
-startTheApp().then(
-    () => {
+startTheApp()
+    .then(() => { 
         console.log('Success!');
-    },
-    (e: Error) => {
+    })
+    .catch((e: Error) => {
         console.log(`Error: "${e.message}", but it's fine, sometimes errors are inevitable.`);
-    }
-);
+    })
 
 // In case if you are stuck:
 // https://www.typescriptlang.org/docs/handbook/generics.html

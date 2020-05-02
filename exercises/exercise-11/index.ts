@@ -106,23 +106,36 @@ function logAdmin(admin: Admin | null) {
 
 const compareUsers = (a: User, b: User) => a.age - b.age;
 const compareAdmins = (a: Admin, b: Admin) => a.age - b.age;
-const colorizeIndex = (value: number) => chalk.red(String(value + 1));
+const colorizeIndex = (value: number) => chalk.red(formatOrdinal(value+1));
+
+const formatOrdinal = (value: number): string => {
+    switch (value % 10) {
+        case 1:
+            return `${value}st`
+        case 2:
+            return `${value}nd`
+        case 3:
+            return `${value}rd`
+        default:
+            return `${value}th`
+    }
+}
 
 console.log(chalk.yellow('Youngest user:'));
 logUser(getMinElement(users, compareUsers));
-console.log(` - was ${colorizeIndex(getMinIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMinIndex(users, compareUsers))} to register`);
 
 console.log();
 
 console.log(chalk.yellow('Median user:'));
 logUser(getMedianElement(users, compareUsers));
-console.log(` - was ${colorizeIndex(getMedianIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMedianIndex(users, compareUsers))} to register`);
 
 console.log();
 
 console.log(chalk.yellow('Oldest user:'));
 logUser(getMaxElement(users, compareUsers));
-console.log(` - was ${colorizeIndex(getMaxIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMaxIndex(users, compareUsers))} to register`);
 
 console.log();
 
@@ -133,19 +146,19 @@ console.log();
 
 console.log(chalk.yellow('Youngest admin:'));
 logAdmin(getMinElement(admins, compareAdmins));
-console.log(` - was ${colorizeIndex(getMinIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMinIndex(users, compareUsers))} to register`);
 
 console.log();
 
 console.log(chalk.yellow('Median admin:'));
 logAdmin(getMedianElement(admins, compareAdmins));
-console.log(` - was ${colorizeIndex(getMedianIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMedianIndex(users, compareUsers))} to register`);
 
 console.log();
 
 console.log(chalk.yellow('Oldest admin:'));
 logAdmin(getMaxElement(admins, compareAdmins));
-console.log(` - was ${colorizeIndex(getMaxIndex(users, compareUsers))}th to register`);
+console.log(` - was ${colorizeIndex(getMaxIndex(users, compareUsers))} to register`);
 
 console.log();
 

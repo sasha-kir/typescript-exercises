@@ -63,10 +63,10 @@ const users: User[] = [
     { type: 'user', name: 'Kate Müller', age: 23, occupation: 'Astronaut' }
 ];
 
-type AdminsApiResponse = (
+type ApiResponse<T> = (
     {
         status: 'success';
-        data: Admin[];
+        data: T;
     } |
     {
         status: 'error';
@@ -74,39 +74,28 @@ type AdminsApiResponse = (
     }
 );
 
-function requestAdmins(callback: (response: AdminsApiResponse) => void) {
+function requestAdmins(callback: (response: ApiResponse<Admin[]>) => void) {
     callback({
         status: 'success',
         data: admins
     });
 }
 
-type UsersApiResponse = (
-    {
-        status: 'success';
-        data: User[];
-    } |
-    {
-        status: 'error';
-        error: string;
-    }
-);
-
-function requestUsers(callback: (response: UsersApiResponse) => void) {
+function requestUsers(callback: (response: ApiResponse<User[]>) => void) {
     callback({
         status: 'success',
         data: users
     });
 }
 
-function requestCurrentServerTime(callback: (response: unknown) => void) {
+function requestCurrentServerTime(callback: (response: ApiResponse<number>) => void) {
     callback({
         status: 'success',
         data: Date.now()
     });
 }
 
-function requestCoffeeMachineQueueLength(callback: (response: unknown) => void) {
+function requestCoffeeMachineQueueLength(callback: (response: ApiResponse<number>) => void) {
     callback({
         status: 'error',
         error: 'Numeric value has exceeded Number.MAX_SAFE_INTEGER.'
@@ -165,14 +154,16 @@ function startTheApp(callback: (error: Error | null) => void) {
     });
 }
 
-startTheApp((e: Error | null) => {
-    console.log();
-    if (e) {
-        console.log(`Error: "${e.message}", but it's fine, sometimes errors are inevitable.`)
-    } else {
-        console.log('Success!');
+startTheApp(
+    (e: Error | null) => {
+        console.log();
+        if (e) {
+            console.log(`Error: "${e.message}", but it's fine, sometimes errors are inevitable.`)
+        } else {
+            console.log('Success!');
+        }
     }
-});
+);
 
 // In case if you are stuck:
 // https://www.typescriptlang.org/docs/handbook/generics.html
