@@ -98,6 +98,7 @@ async function testUsersDatabase() {
     // It is also possible that queried words are spread among different full-text search fields.
     expect((await usersDatabase.find({$text: 'max'})).map(({_id}) => _id)).to.have.same.members([0, 7]);
     expect((await usersDatabase.find({$text: 'Hey'})).map(({_id}) => _id)).to.have.same.members([]);
+    expect((await usersDatabase.find({$text: 'gadget undercover'})).map(({_id}) => _id)).to.have.same.members([5]);
 
     // $in operator checks if entry field value is within the specified list of accepted values.
     // Syntax {fieldName: {$in: [value1, value2, value3]}}
