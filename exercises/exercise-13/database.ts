@@ -1,7 +1,4 @@
-import * as fs from 'fs';
-import { promisify } from 'util';
-
-const readFile = promisify(fs.readFile);
+import { promises as fs } from 'fs';
 
 interface DatabaseRecord {
     _id: number;
@@ -14,14 +11,23 @@ type QueryOp = '$eq' | '$gt' | '$lt'
 type ArrayOp = '$in'
 type SetOp = '$and' | '$or';
 
-const queryOperations: { [key in QueryOp]: <V>(a: V, b: V) => boolean } = {
+type QueryMethod = <V>(a: V, b: V) => boolean
+type QueryOperationsObject = { [key in QueryOp]: QueryMethod }
+const queryOperations: QueryOperationsObject = {
     '$eq': (a, b) => a === b,
     '$gt': (a, b) => a > b,
     '$lt': (a, b) => a < b,
 }
 
-const arrayOperations: { [key in ArrayOp]: <V>(v: V, arr: V[]) => boolean } = {
+type ArrayMethod = <V>(v: V, arr: V[]) => boolean
+type ArrayOperationsObject = { [key in ArrayOp]: ArrayMethod }
+const arrayOperations: ArrayOperationsObject = {
     '$in': (v, arr) => arr.includes(v),
+}
+
+const simpleOperations: QueryOperationsObject & ArrayOperationsObject = {
+    ...queryOperations,
+    ...arrayOperations
 }
 
 const setOperations: { [key in SetOp]: number } = {
@@ -54,7 +60,7 @@ export class Database<T extends DatabaseRecord> {
     }
 
     async loadDatabase(): Promise<void> {
-        const dbContents = await readFile(this.filename, "utf8");
+        const dbContents = await fs.readFile(this.filename, "utf8");
         const data = dbContents.split('\n').reduce((res: T[], row: string) => {
             if (row[0] === 'E') {
                 const rowData = JSON.parse(row.substring(1))
@@ -66,22 +72,13 @@ export class Database<T extends DatabaseRecord> {
         this.records = data;
     }
 
-    handleFieldQuery(operator: string, subQuery: SimpleSubQuery<T>, field: FieldName<T>): T[] {
-        const op = operator as QueryOp
-        const opQuery = subQuery as FieldSubQuery<T>
-        const valueToCompare = opQuery[op]
+    handleSimpleQuery(operator: QueryOp, subQuery: FieldSubQuery<T>, field: FieldName<T>): T[]
+    handleSimpleQuery(operator: ArrayOp, subQuery: ArraySubQuery<T>, field: FieldName<T>): T[]
+    handleSimpleQuery(operator: QueryOp | ArrayOp, subQuery: any, field: FieldName<T>): T[] {
+        const valueToCompare = subQuery[operator];
         if (valueToCompare === undefined) throw new Error('something went wrong');
-        const filterFn = queryOperations[op];
-        return this.records.filter(entry => filterFn<FieldValue<T>>(entry[field], valueToCompare))
-    }
-
-    handleArrayQuery(operator: string, subQuery: SimpleSubQuery<T>, field: FieldName<T>): T[] {
-        const op = operator as ArrayOp
-        const opQuery = subQuery as ArraySubQuery<T>
-        const valuesToFind = opQuery[op]
-        if (valuesToFind === undefined) throw new Error('something went wrong');
-        const filterFn = arrayOperations[op];
-        return this.records.filter(entry => filterFn<FieldValue<T>>(entry[field], valuesToFind))
+        const filterFn = simpleOperations[operator] as QueryMethod & ArrayMethod;
+        return this.records.filter(entry => filterFn<FieldValue<T>>(entry[field], valueToCompare));
     }
 
     prepareText = (text: string): string[] => text.toLowerCase().split(" ");
@@ -108,7 +105,7 @@ export class Database<T extends DatabaseRecord> {
                 const fieldName = key as FieldName<T>
                 const subQuery = value as SimpleSubQuery<T>
                 const operator = Object.keys(subQuery)[0];
-                const setQueryResult = this.handleFieldQuery(operator, subQuery, fieldName);
+                const setQueryResult = this.handleSimpleQuery(operator as QueryOp, subQuery as FieldSubQuery<T>, fieldName);
                 const currentIds = result.map(entry => entry._id);
                 switch (setOperator) {
                     case "$or":
@@ -147,22 +144,19 @@ export class Database<T extends DatabaseRecord> {
                 const operator = Object.keys(subQuery)[0];
                 if (operator in queryOperations) {
                     // query is FieldQuery
-                    return this.handleFieldQuery(operator, subQuery, fieldName);
+                    return this.handleSimpleQuery(operator as QueryOp, subQuery as FieldSubQuery<T>, fieldName);
                 } else if (operator in arrayOperations) {
                     // query is ArrayQuery
-                    return this.handleArrayQuery(operator, subQuery, fieldName);
+                    return this.handleSimpleQuery(operator as ArrayOp, subQuery as ArraySubQuery<T>, fieldName);
                 } else {
                     throw new Error('unhandled query operator');
                 }
             } else if (key === '$text') {
                 // query is TextQuery
-                const searchQuery = value as string;
-                return this.handleTextQuery(searchQuery);
+                return this.handleTextQuery(value as string);
             } else if (key in setOperations) {
                 // query is SetQuery
-                const setOp = key as SetOp;
-                const queryArray = value as FieldQuery<T>[];
-                return this.handleSetQuery(setOp, queryArray);
+                return this.handleSetQuery(key as SetOp, value as FieldQuery<T>[]);
             } else {
                 throw new Error('unhandled query format');
             }
