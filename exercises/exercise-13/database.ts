@@ -72,6 +72,28 @@ export class Database<T extends DatabaseRecord> {
         this.records = data;
     }
 
+    uniteResults(finalResult: T[], queryResult: T[]): T[] {
+        const currentIds = finalResult.map(entry => entry._id);
+        const total = queryResult.reduce((res, entry) => {
+            return currentIds.includes(entry._id) ? res : [ ...res, entry ]
+        }, finalResult)
+        return total
+    }
+
+    intersectResults(finalResult: T[], queryResult: T[]): T[] {
+        const currentIds = finalResult.map(entry => entry._id);
+        let total: T[];
+        if (finalResult.length) {
+            const commonIds = queryResult.reduce((res: number[], entry) => {
+                return currentIds.includes(entry._id) ? [...res, entry._id] : res;
+            }, []);
+            total = finalResult.filter(entry => commonIds.includes(entry._id));
+        } else {
+            total = [...queryResult]
+        }
+        return total;
+    }
+
     handleSimpleQuery(operator: QueryOp, subQuery: FieldSubQuery<T>, field: FieldName<T>): T[]
     handleSimpleQuery(operator: ArrayOp, subQuery: ArraySubQuery<T>, field: FieldName<T>): T[]
     handleSimpleQuery(operator: QueryOp | ArrayOp, subQuery: any, field: FieldName<T>): T[] {
@@ -106,22 +128,12 @@ export class Database<T extends DatabaseRecord> {
                 const subQuery = value as SimpleSubQuery<T>
                 const operator = Object.keys(subQuery)[0];
                 const setQueryResult = this.handleSimpleQuery(operator as QueryOp, subQuery as FieldSubQuery<T>, fieldName);
-                const currentIds = result.map(entry => entry._id);
                 switch (setOperator) {
                     case "$or":
-                        result = setQueryResult.reduce((res, entry) => {
-                            return currentIds.includes(entry._id) ? res : [ ...res, entry ]
-                        }, result)
+                        result = this.uniteResults(result, setQueryResult);
                         break;
                     case "$and":
-                        if (result.length) {
-                            const commonIds = setQueryResult.reduce((res: number[], entry) => {
-                                return currentIds.includes(entry._id) ? [...res, entry._id] : res;
-                            }, []);
-                            result = result.filter(entry => commonIds.includes(entry._id));
-                        } else {
-                            result = [...setQueryResult]
-                        }
+                        result = this.intersectResults(result, setQueryResult);
                         break;
                     default:
                         throw new Error("unhandled set operator")
@@ -135,32 +147,36 @@ export class Database<T extends DatabaseRecord> {
         await this.loadDatabase();
         if (!this.records.length) return [];
 
-        for (const elem of Object.entries(query)) {
-            const [key, value] = elem;
-            if (key in this.records[0]) {
+        const queryElements = Object.entries(query);
+        const [key, value] = queryElements[0];
+
+        if (key === '$text') {
+            // query is TextQuery
+            return this.handleTextQuery(value as string);
+        } else if (key in setOperations) {
+            // query is SetQuery
+            return this.handleSetQuery(key as SetOp, value as FieldQuery<T>[]);
+        } else if (key in this.records[0]) {
+            let result: T[] = [];
+            for (const elem of queryElements) {
+                const [key, value] = elem;
                 // query is either FieldQuery or ArrayQuery
                 const fieldName = key as FieldName<T>
                 const subQuery = value as SimpleSubQuery<T>
                 const operator = Object.keys(subQuery)[0];
                 if (operator in queryOperations) {
                     // query is FieldQuery
-                    return this.handleSimpleQuery(operator as QueryOp, subQuery as FieldSubQuery<T>, fieldName);
+                    result = this.intersectResults(result, this.handleSimpleQuery(operator as QueryOp, subQuery as FieldSubQuery<T>, fieldName));
                 } else if (operator in arrayOperations) {
                     // query is ArrayQuery
-                    return this.handleSimpleQuery(operator as ArrayOp, subQuery as ArraySubQuery<T>, fieldName);
+                    result = this.intersectResults(result, this.handleSimpleQuery(operator as ArrayOp, subQuery as ArraySubQuery<T>, fieldName));
                 } else {
                     throw new Error('unhandled query operator');
                 }
-            } else if (key === '$text') {
-                // query is TextQuery
-                return this.handleTextQuery(value as string);
-            } else if (key in setOperations) {
-                // query is SetQuery
-                return this.handleSetQuery(key as SetOp, value as FieldQuery<T>[]);
-            } else {
-                throw new Error('unhandled query format');
             }
+            return result;
+        } else {
+            throw new Error('unhandled query format');
         }
-        return [];
     }
 }

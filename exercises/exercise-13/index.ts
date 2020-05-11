@@ -56,7 +56,7 @@ async function testUsersDatabase() {
     expect(
         (await usersDatabase.find({occupation: {$eq: 'Magical entity'}})).map(({_id}) => _id)
     ).to.have.same.members([6, 8]);
-    expect((await usersDatabase.find({age: {$eq: 31}, name: {$eq: 'Inspector Gadget'}}))[0]._id).to.equal(5);
+    expect((await usersDatabase.find({age: {$eq: 31}, name: {$eq: 'Inspector Gadget'}})).map(({_id}) => _id)).to.have.same.members([5]);
 
     // $gt operator means ">", syntax {fieldName: {$gt: value}}
     // see more https://docs.mongodb.com/manual/reference/operator/query/gt/
